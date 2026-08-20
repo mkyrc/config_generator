@@ -57,6 +57,7 @@
   .status { margin-top:10px; font-size:12px; color:#59636e; min-height:18px; }
   .status.warning { color:#b45309; }
   .error { color:#b91c1c; white-space:pre-wrap; }
+  .inserted-value { display:inline-block; padding:0 4px; border-radius:4px; background:#dcfce7; color:#166534; border:1px solid #22c55e; font-weight:600; }
   .missing-value { display:inline-block; padding:0 4px; border-radius:4px; background:#fef3c7; color:#b45309; border:1px solid #f59e0b; font-weight:600; }
   .hint { color:#6b7280; font-size:12px; margin:7px 0 0; }
   @media(max-width:900px) { main { grid-template-columns:1fr; } }
@@ -115,6 +116,10 @@
         <input id="missingValueCheck" type="checkbox" checked>
         <span>Check missing values</span>
       </label>
+      <label class="control-row">
+        <input id="insertedValueHighlightCheck" type="checkbox">
+        <span>Highlight inserted values</span>
+      </label>
       <pre id="result"></pre>
       <div class="toolbar">
         <button id="copyBtn" disabled>Copy</button>
@@ -134,7 +139,9 @@ let selectedSheetIndex = 0;
 let lastExcelFile = null;
 let lastTemplateFile = null;
 let missingTokens = [];
+let insertedTokens = [];
 let missingValueCheckEnabled = true;
+let insertedValueHighlightEnabled = false;
 let templateEditor;
 
 const drop = document.getElementById('drop');
@@ -145,6 +152,7 @@ const templateFileName = document.getElementById('templateFileName');
 const excelRefreshBtn = document.getElementById('excelRefreshBtn');
 const templateRefreshBtn = document.getElementById('templateRefreshBtn');
 const missingValueCheck = document.getElementById('missingValueCheck');
+const insertedValueHighlightCheck = document.getElementById('insertedValueHighlightCheck');
 const templateContainer = document.getElementById('templateEditor');
 const sheetSelectorWrap = document.getElementById('sheetSelectorWrap');
 const sheetSelect = document.getElementById('sheetSelect');
@@ -199,6 +207,11 @@ missingValueCheck.addEventListener('change', () => {
   render();
 });
 
+insertedValueHighlightCheck.addEventListener('change', () => {
+  insertedValueHighlightEnabled = insertedValueHighlightCheck.checked;
+  render();
+});
+
 templateEditor = ace.edit(templateContainer);
 templateEditor.setTheme('ace/theme/github');
 templateEditor.session.setMode('ace/mode/nunjucks');
@@ -212,11 +225,13 @@ templateEditor.setOptions({
   highlightActiveLine: true,
   highlightSelectedWord: true,
 });
-templateEditor.setValue(`hostname {{ hostname }}
+templateEditor.setValue(`# example template for a network device
+
+hostname {{ hostname }}
 
 interface {{ interface }}
  description Uplink
- ip address {{ ip }}
+ ip address {{ ip_address }} {{ subnet_mask }}
  switchport access vlan {{ vlan }}`, -1);
 templateEditor.session.on('change', render);
 
@@ -363,18 +378,17 @@ function render() {
   }
 
   try {
-    if (missingValueCheckEnabled) {
+    if (missingValueCheckEnabled || insertedValueHighlightEnabled) {
       missingTokens = [];
-      const templateSource = transformTemplateForMissingHighlights(templateEditor.getValue());
+      insertedTokens = [];
+      const templateSource = transformTemplateForHighlights(templateEditor.getValue());
       const output = nunjucks.renderString(templateSource, {
         ...rows[selectedIndex],
-        __markValue: markValueForMissingHighlight,
+        __markValue: markValueForHighlight,
       });
-      const renderedText = applyMissingPlaceholders(output);
+      const renderedText = applyHighlightPlaceholders(output);
       result.innerHTML = renderTextAsHtml(renderedText);
-      renderStatus.textContent = missingTokens.length
-        ? `Rendered with ${missingTokens.length} missing value(s).`
-        : 'Rendered successfully.';
+      renderStatus.textContent = buildRenderStatus();
       renderStatus.className = missingTokens.length ? 'status warning' : 'status';
     } else {
       const output = nunjucks.renderString(templateEditor.getValue(), rows[selectedIndex]);
@@ -382,6 +396,7 @@ function render() {
       renderStatus.textContent = 'Rendered successfully.';
       renderStatus.className = 'status';
       missingTokens = [];
+      insertedTokens = [];
     }
     copyBtn.disabled = false;
     downloadBtn.disabled = false;
@@ -416,28 +431,53 @@ function escapeHtml(s) {
   }[c]));
 }
 
-function transformTemplateForMissingHighlights(source) {
+function transformTemplateForHighlights(source) {
   return source.replace(/{{\s*(.*?)\s*}}/g, (_, expression) => `{{ __markValue((${expression}), ${JSON.stringify(expression.trim())}) }}`);
 }
 
-function markValueForMissingHighlight(value, label) {
+function markValueForHighlight(value, label) {
   if (value === undefined || value === null || value === '') {
+    if (!missingValueCheckEnabled) return '';
     const token = `__MISSING_VALUE_${missingTokens.length}__`;
     missingTokens.push({token, label});
     return token;
   }
 
-  return value;
+  if (!insertedValueHighlightEnabled) {
+    return value;
+  }
+
+  const token = `__INSERTED_VALUE_${insertedTokens.length}__`;
+  insertedTokens.push({token, value: String(value)});
+  return token;
 }
 
-function applyMissingPlaceholders(output) {
+function applyHighlightPlaceholders(output) {
   let text = output;
 
   missingTokens.forEach(({token, label}) => {
     text = text.split(token).join(`[missing: ${label}]`);
   });
 
+  insertedTokens.forEach(({token, value}) => {
+    text = text.split(token).join(`[inserted: ${value}]`);
+  });
+
   return text;
+}
+
+function buildRenderStatus() {
+  const parts = [];
+
+  if (missingTokens.length) {
+    parts.push(`${missingTokens.length} missing value(s)`);
+  }
+
+  if (insertedTokens.length) {
+    parts.push(`${insertedTokens.length} inserted value(s) highlighted`);
+  }
+
+  return parts.length ? `Rendered with ${parts.join(' and ')}.` : 'Rendered successfully.';
 }
 
 function renderTextAsHtml(text) {
@@ -446,6 +486,11 @@ function renderTextAsHtml(text) {
   missingTokens.forEach(({label}) => {
     const placeholder = escapeHtml(`[missing: ${label}]`);
     html = html.split(placeholder).join(`<span class="missing-value">[missing: ${escapeHtml(label)}]</span>`);
+  });
+
+  insertedTokens.forEach(({value}) => {
+    const placeholder = escapeHtml(`[inserted: ${value}]`);
+    html = html.split(placeholder).join(`<span class="inserted-value">${escapeHtml(value)}</span>`);
   });
 
   return html;
