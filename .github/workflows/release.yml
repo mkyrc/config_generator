@@ -43,3 +43,44 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
+
+      - name: Prepare release notes
+        run: |
+          TAG="v${VERSION}"
+          IMAGE="ghcr.io/${{ github.repository }}:${TAG}"
+          PACKAGE_URL="https://github.com/${{ github.repository }}/pkgs/container/${{ github.event.repository.name }}"
+          README_URL="https://github.com/${{ github.repository }}#readme"
+
+          cat > release-notes.md <<EOF
+          ## Docker image
+
+          Image: \
+          \
+          \\`$IMAGE\\`
+
+          Package page: $PACKAGE_URL
+
+          ## Run with Docker
+
+          \
+          \
+          \\`docker pull $IMAGE\\`
+          \
+          \
+          \\`docker run --rm -p 8080:8080 --name config-generator $IMAGE\\`
+
+          Open in browser: http://localhost:8080
+
+          ## Usage
+
+          See README: $README_URL
+
+          Note: Docker package publication runs in CI after tag push and can take a short time to appear.
+          EOF
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Release v${{ env.VERSION }}
+          body_path: release-notes.md
