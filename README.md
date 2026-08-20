@@ -1,114 +1,78 @@
-# Config Generator (Jinja + Excel)
+# Config Generator (Jinja + Excel/CSV)
 
-Single-page web app for rendering network/config templates from Excel/CSV data using Jinja syntax.
+A web app for generating configurations from a Jinja template and Excel/CSV data.
 
-## Project Structure
+## What The App Does
 
-- src/jinja_config_renderer.html: Main application file
-- Dockerfile: Container image definition
-- nginx.conf: Static web server configuration
-- .github/workflows/ci.yml: GitHub CI/CD pipeline
-- VERSION: Current application version
-- CHANGELOG.md: Release history
+- Loads a template (`.j2`, `.jinja`, `.txt`)
+- Loads data (`.xlsx`, `.xls`, `.csv`)
+- Lets you choose a sheet/table and rows
+- Generates final configuration text for selected data
 
-## Run Locally with Docker
+## Requirements
 
-Build image:
+- Docker (recommended), or
+- a web browser (Chrome/Edge/Firefox) to run without Docker
+
+Note: the app is static (no backend), but libraries are loaded from CDN, so internet access is required.
+
+## Install And Run
+
+### Recommended: Docker
+
+Run this in the project root:
 
 ```bash
 docker build -t config-generator:local .
-```
-
-Run container:
-
-```bash
 docker run --rm -p 8080:8080 --name config-generator config-generator:local
 ```
 
-Open in browser:
+Then open in your browser:
 
 ```text
 http://localhost:8080
 ```
 
-## GitHub CI/CD
+### Alternative: Without Docker
 
-Workflow file:
+Open `src/jinja_config_renderer.html` directly in your browser.
 
-- .github/workflows/ci.yml
-
-### What pipeline does
-
-1. verify job (push + pull request):
-   - builds Docker image
-   - runs container
-   - performs HTTP smoke test
-
-2. publish job (push only):
-   - logs in to GitHub Container Registry (GHCR)
-   - builds and pushes image to:
-     - ghcr.io/<OWNER>/<REPO>:latest (default branch)
-     - ghcr.io/<OWNER>/<REPO>:<git-tag> (for tags like v1.0.0)
-     - ghcr.io/<OWNER>/<REPO>:sha-<commit>
-
-### Requirements for publish
-
-- Repository hosted on GitHub
-- GitHub Actions enabled
-- Default GITHUB_TOKEN must have permission to write packages
-- For release tags (`vX.Y.Z`), tag must match value in VERSION
-
-## Versioning
-
-This project uses Semantic Versioning (`MAJOR.MINOR.PATCH`).
-
-- PATCH: bugfixes, no breaking changes
-- MINOR: new backward-compatible features
-- MAJOR: breaking changes
-
-Release tag format:
-
-```text
-vX.Y.Z
-```
-
-Examples:
-
-- v1.0.1
-- v1.1.0
-- v2.0.0
-
-## Release Process
-
-1. Update code
-2. Update VERSION (for example `1.1.0`)
-3. Update CHANGELOG.md with a new section
-4. Commit changes
-5. Create and push tag:
+If your browser restricts local file loading, run a simple local server:
 
 ```bash
-git tag v1.1.0
-git push origin main --tags
+python3 -m http.server 8080
 ```
 
-CI will validate that tag (`v1.1.0`) equals VERSION (`1.1.0`) before publishing image.
-
-## Run at Client Site
-
-If image is published to GHCR:
-
-```bash
-docker pull ghcr.io/<OWNER>/<REPO>:latest
-docker run --rm -p 8080:8080 --name config-generator ghcr.io/<OWNER>/<REPO>:latest
-```
-
-Then open:
+and open:
 
 ```text
-http://<host-ip>:8080
+http://localhost:8080/src/jinja_config_renderer.html
 ```
 
-## Notes
+## How To Use The App
 
-- App is static, no backend required.
-- Current template engine and spreadsheet libraries are loaded from CDN in the HTML file, so internet access is needed unless you vendor these scripts locally.
+1. Upload a data file (`.xlsx`, `.xls`, or `.csv`).
+2. Upload a Jinja template (`.j2`, `.jinja`, or `.txt`).
+3. If you use Excel, select the correct sheet.
+4. Select rows you want to generate configuration for.
+5. Click generate/render.
+6. Review the output and copy it to your target system/device.
+
+Tip: the `data/` folder contains sample files (`test.csv`, `data.xlsx`, `config.j2`) so you can test the workflow quickly.
+
+## Common Issues
+
+- Page does not open on `localhost:8080`:
+   - check if the container is running: `docker ps`
+   - if the port is in use, change mapping, for example: `-p 8081:8080`
+
+- Docker is not available:
+   - use the without-Docker alternative above
+
+- Library loading fails:
+   - verify internet connectivity (CDN scripts)
+
+## Current Version And Changes
+
+- Version: see `VERSION`
+- Changelog: `CHANGELOG.md`
