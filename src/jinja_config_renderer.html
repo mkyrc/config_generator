@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jinja Config Renderer</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/nunjucks@3.2.4/browser/nunjucks.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ace-builds@1.36.1/src-min-noconflict/ace.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ace-builds@1.36.1/src-min-noconflict/mode-nunjucks.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ace-builds@1.36.1/src-min-noconflict/theme-github.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:#f4f6f8; color:#20252b; }
+  header { padding:18px 24px; background:#1f2937; color:white; }
+  header h1 { margin:0; font-size:20px; }
+  main { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px; max-width:1600px; margin:auto; }
+  .panel { background:white; border:1px solid #d8dde3; border-radius:8px; overflow:hidden; min-width:0; }
+  .panel h2 { font-size:15px; margin:0; padding:12px 14px; border-bottom:1px solid #e2e6ea; }
+  .content { padding:14px; }
+  .drop { display:block; width:100%; border:2px dashed #aab3bd; border-radius:7px; padding:28px 12px; text-align:center; cursor:pointer; background:#fafbfc; }
+  .drop.drag { border-color:#2563eb; background:#eff6ff; }
+  .drop input { display:none; }
+  .file { margin-top:8px; font-size:13px; color:#58616b; }
+  .file-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; }
+  .icon-btn { width:32px; height:32px; padding:0; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#e5e7eb; color:#1f2937; }
+  .icon-btn:hover { background:#d1d5db; }
+  .icon-btn:disabled { opacity:.45; cursor:not-allowed; }
+  .control-row { display:flex; align-items:center; gap:10px; margin:12px 0 10px; font-size:13px; color:#374151; }
+  .control-row input { width:16px; height:16px; }
+  select, button { font:inherit; }
+  select { width:100%; padding:8px; border:1px solid #c8ced5; border-radius:5px; background:white; }
+  textarea, pre, .editor { width:100%; min-height:360px; margin:0; border:1px solid #cfd5db; border-radius:5px; font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .editor { height:360px; overflow:hidden; }
+  .ace_editor .ace_punctuation.ace_begin,
+  .ace_editor .ace_punctuation.ace_end,
+  .ace_editor .ace_variable {
+    color:#b91c1c !important;
+    font-weight:600;
+  }
+  .ace_editor .ace_keyword,
+  .ace_editor .ace_support.ace_function {
+    color:#2563eb !important;
+    font-weight:600;
+  }
+  pre { background:#111827; color:#e5e7eb; overflow:auto; white-space:pre-wrap; }
+  .toolbar { display:flex; gap:8px; margin-top:10px; }
+  button { border:0; border-radius:5px; padding:8px 12px; cursor:pointer; background:#2563eb; color:white; }
+  button.secondary { background:#6b7280; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .table-wrap { margin-top:12px; max-height:330px; overflow:auto; border:1px solid #d8dde3; border-radius:5px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th,td { padding:7px 9px; border-bottom:1px solid #e5e7eb; text-align:left; white-space:nowrap; }
+  th { position:sticky; top:0; background:#f3f4f6; }
+  tr.selected { background:#dbeafe; }
+  tr.clickable { cursor:pointer; }
+  .status { margin-top:10px; font-size:12px; color:#59636e; min-height:18px; }
+  .status.warning { color:#b45309; }
+  .error { color:#b91c1c; white-space:pre-wrap; }
+  .missing-value { display:inline-block; padding:0 4px; border-radius:4px; background:#fef3c7; color:#b45309; border:1px solid #f59e0b; font-weight:600; }
+  .hint { color:#6b7280; font-size:12px; margin:7px 0 0; }
+  @media(max-width:900px) { main { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header><h1>Jinja Config Renderer</h1></header>
+
+<main>
+  <section class="panel">
+    <h2>1. Excel data</h2>
+    <div class="content">
+      <label class="drop" id="drop">
+        <input id="file" type="file" accept=".xlsx,.xls,.csv">
+        <strong>Drag & drop Excel or CSV file here</strong><br>
+        <span>or click to select a file</span>
+      </label>
+      <div class="file-row">
+        <div class="file" id="fileName">No file selected</div>
+        <button id="excelRefreshBtn" class="icon-btn" type="button" title="Refresh Excel file" aria-label="Refresh Excel file">↻</button>
+      </div>
+
+      <div id="sheetSelectorWrap" style="display:none;margin-top:14px">
+        <label for="sheetSelect"><strong>Sheet</strong></label>
+        <select id="sheetSelect"></select>
+      </div>
+
+      <div class="table-wrap" id="tableWrap" style="display:none">
+        <table id="dataTable"></table>
+      </div>
+      <div class="status" id="excelStatus"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>2. Jinja template</h2>
+    <div class="content">
+      <label class="drop" id="templateDrop" style="margin-bottom:12px">
+        <input id="templateFile" type="file" accept=".j2,.jinja,.tpl,.txt,.njk">
+        <strong>Drag & drop Jinja template here</strong><br>
+        <span>or click to load a template file</span>
+      </label>
+      <div class="file-row">
+        <div class="file" id="templateFileName">No template file selected</div>
+        <button id="templateRefreshBtn" class="icon-btn" type="button" title="Refresh template file" aria-label="Refresh template file">↻</button>
+      </div>      
+      <div id="templateEditor" class="editor"></div>
+      <p class="hint">Use Jinja/Nunjucks syntax, e.g. {{ hostname }}, {% if vlan %}...{% endif %}</p>
+    </div>
+  </section>
+
+  <section class="panel" style="grid-column:1/-1">
+    <h2>3. Rendered result</h2>
+    <div class="content">
+      <label class="control-row">
+        <input id="missingValueCheck" type="checkbox" checked>
+        <span>Check missing values</span>
+      </label>
+      <pre id="result"></pre>
+      <div class="toolbar">
+        <button id="copyBtn" disabled>Copy</button>
+        <button id="downloadBtn" class="secondary" disabled>Download config</button>
+      </div>
+      <div class="status" id="renderStatus"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+let headers = [];
+let rows = [];
+let selectedIndex = -1;
+let workbook = null;
+let selectedSheetIndex = 0;
+let lastExcelFile = null;
+let lastTemplateFile = null;
+let missingTokens = [];
+let missingValueCheckEnabled = true;
+let templateEditor;
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const templateDrop = document.getElementById('templateDrop');
+const templateFileInput = document.getElementById('templateFile');
+const templateFileName = document.getElementById('templateFileName');
+const excelRefreshBtn = document.getElementById('excelRefreshBtn');
+const templateRefreshBtn = document.getElementById('templateRefreshBtn');
+const missingValueCheck = document.getElementById('missingValueCheck');
+const templateContainer = document.getElementById('templateEditor');
+const sheetSelectorWrap = document.getElementById('sheetSelectorWrap');
+const sheetSelect = document.getElementById('sheetSelect');
+const table = document.getElementById('dataTable');
+const tableWrap = document.getElementById('tableWrap');
+const result = document.getElementById('result');
+const copyBtn = document.getElementById('copyBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const renderStatus = document.getElementById('renderStatus');
+
+fileInput.addEventListener('change', e => e.target.files[0] && loadExcel(e.target.files[0]));
+drop.addEventListener('pointerdown', () => { fileInput.value = ''; });
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) loadExcel(file);
+});
+
+templateFileInput.addEventListener('change', e => e.target.files[0] && loadTemplate(e.target.files[0]));
+templateDrop.addEventListener('pointerdown', () => { templateFileInput.value = ''; });
+templateDrop.addEventListener('dragover', e => { e.preventDefault(); templateDrop.classList.add('drag'); });
+templateDrop.addEventListener('dragleave', () => templateDrop.classList.remove('drag'));
+templateDrop.addEventListener('drop', e => {
+  e.preventDefault();
+  templateDrop.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) loadTemplate(file);
+});
+
+excelRefreshBtn.addEventListener('click', () => {
+  if (lastExcelFile) {
+    loadExcel(lastExcelFile);
+  }
+});
+
+templateRefreshBtn.addEventListener('click', () => {
+  if (lastTemplateFile) {
+    loadTemplate(lastTemplateFile);
+  }
+});
+
+sheetSelect.addEventListener('change', () => {
+  selectedSheetIndex = Number(sheetSelect.value);
+  loadSelectedSheet();
+});
+
+missingValueCheck.addEventListener('change', () => {
+  missingValueCheckEnabled = missingValueCheck.checked;
+  render();
+});
+
+templateEditor = ace.edit(templateContainer);
+templateEditor.setTheme('ace/theme/github');
+templateEditor.session.setMode('ace/mode/nunjucks');
+templateEditor.session.setTabSize(2);
+templateEditor.session.setUseSoftTabs(true);
+templateEditor.session.setUseWrapMode(true);
+templateEditor.renderer.setShowGutter(true);
+templateEditor.setOptions({
+  fontSize: '13px',
+  showPrintMargin: false,
+  highlightActiveLine: true,
+  highlightSelectedWord: true,
+});
+templateEditor.setValue(`hostname {{ hostname }}
+
+interface {{ interface }}
+ description Uplink
+ ip address {{ ip }}
+ switchport access vlan {{ vlan }}`, -1);
+templateEditor.session.on('change', render);
+
+async function loadTemplate(file) {
+  lastTemplateFile = file;
+  templateFileName.textContent = file.name;
+
+  try {
+    const text = await file.text();
+    templateEditor.setValue(text || '', -1);
+    render();
+  } catch (e) {
+    templateFileName.innerHTML = `<span class="error">${escapeHtml(e.message)}</span>`;
+  }
+}
+
+async function loadExcel(file) {
+  lastExcelFile = file;
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('excelStatus').textContent = 'Reading...';
+  workbook = null;
+  selectedSheetIndex = 0;
+  sheetSelectorWrap.style.display = 'none';
+  sheetSelect.innerHTML = '';
+  tableWrap.style.display = 'none';
+
+  try {
+    const buffer = await file.arrayBuffer();
+    workbook = XLSX.read(buffer, {type:'array'});
+    buildSheetSelector();
+    loadSelectedSheet();
+
+    document.getElementById('excelStatus').textContent =
+      `${workbook.SheetNames.length} sheet(s) loaded.`;
+
+  } catch (e) {
+    document.getElementById('excelStatus').innerHTML =
+      `<span class="error">${escapeHtml(e.message)}</span>`;
+    rows = [];
+    headers = [];
+    result.textContent = '';
+  }
+}
+
+function buildSheetSelector() {
+  if (!workbook) return;
+
+  sheetSelect.innerHTML = '';
+  workbook.SheetNames.forEach((sheetName, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+    option.textContent = sheetName;
+    sheetSelect.appendChild(option);
+  });
+
+  sheetSelect.value = selectedSheetIndex;
+  sheetSelectorWrap.style.display = 'block';
+}
+
+function loadSelectedSheet() {
+  if (!workbook) return;
+
+  const sheetName = workbook.SheetNames[selectedSheetIndex];
+  const worksheet = workbook.Sheets[sheetName];
+  const data = XLSX.utils.sheet_to_json(worksheet, {header:1, defval:''});
+
+  if (!data.length) {
+    rows = [];
+    headers = [];
+    selectedIndex = -1;
+    tableWrap.style.display = 'none';
+    table.innerHTML = '';
+    document.getElementById('excelStatus').innerHTML =
+      `<span class="error">Sheet "${escapeHtml(sheetName)}" is empty.</span>`;
+    result.textContent = '';
+    return;
+  }
+
+  headers = data[0].map((x, i) => String(x).trim() || `column_${i+1}`);
+  rows = data.slice(1)
+    .filter(r => r.some(v => String(v).trim() !== ''))
+    .map(r => Object.fromEntries(headers.map((h,i) => [h, r[i] ?? ''])));
+
+  if (!rows.length) {
+    selectedIndex = -1;
+    tableWrap.style.display = 'none';
+    table.innerHTML = '';
+    document.getElementById('excelStatus').innerHTML =
+      `<span class="error">No data rows found in sheet "${escapeHtml(sheetName)}".</span>`;
+    result.textContent = '';
+    return;
+  }
+
+  selectedIndex = 0;
+  buildTable();
+  document.getElementById('excelStatus').textContent =
+    `${sheetName}: ${rows.length} row(s), ${headers.length} variable(s) loaded.`;
+  render();
+}
+
+function buildTable() {
+  table.innerHTML = '';
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  headers.forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    hr.appendChild(th);
+  });
+  thead.appendChild(hr);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  rows.forEach((row, i) => {
+    const tr = document.createElement('tr');
+    tr.className = 'clickable';
+    tr.addEventListener('click', () => {
+      selectedIndex = i;
+      highlightRow();
+      render();
+    });
+    headers.forEach(h => {
+      const td = document.createElement('td');
+      td.textContent = row[h];
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  tableWrap.style.display = 'block';
+  highlightRow();
+}
+
+function highlightRow() {
+  [...table.querySelectorAll('tbody tr')].forEach((tr,i) =>
+    tr.classList.toggle('selected', i === selectedIndex)
+  );
+}
+
+function render() {
+  if (selectedIndex < 0 || !rows.length) {
+    result.textContent = '';
+    return;
+  }
+
+  try {
+    if (missingValueCheckEnabled) {
+      missingTokens = [];
+      const templateSource = transformTemplateForMissingHighlights(templateEditor.getValue());
+      const output = nunjucks.renderString(templateSource, {
+        ...rows[selectedIndex],
+        __markValue: markValueForMissingHighlight,
+      });
+      const renderedText = applyMissingPlaceholders(output);
+      result.innerHTML = renderTextAsHtml(renderedText);
+      renderStatus.textContent = missingTokens.length
+        ? `Rendered with ${missingTokens.length} missing value(s).`
+        : 'Rendered successfully.';
+      renderStatus.className = missingTokens.length ? 'status warning' : 'status';
+    } else {
+      const output = nunjucks.renderString(templateEditor.getValue(), rows[selectedIndex]);
+      result.textContent = output;
+      renderStatus.textContent = 'Rendered successfully.';
+      renderStatus.className = 'status';
+      missingTokens = [];
+    }
+    copyBtn.disabled = false;
+    downloadBtn.disabled = false;
+  } catch (e) {
+    result.textContent = '';
+    renderStatus.textContent = e.message;
+    renderStatus.className = 'status error';
+    copyBtn.disabled = true;
+    downloadBtn.disabled = true;
+  }
+}
+
+copyBtn.addEventListener('click', async () => {
+  await navigator.clipboard.writeText(result.textContent);
+  renderStatus.textContent = 'Copied to clipboard.';
+});
+
+downloadBtn.addEventListener('click', () => {
+  const row = rows[selectedIndex];
+  const filename = `${row.hostname || row.name || 'config'}.conf`;
+  const blob = new Blob([result.textContent], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[c]));
+}
+
+function transformTemplateForMissingHighlights(source) {
+  return source.replace(/{{\s*(.*?)\s*}}/g, (_, expression) => `{{ __markValue((${expression}), ${JSON.stringify(expression.trim())}) }}`);
+}
+
+function markValueForMissingHighlight(value, label) {
+  if (value === undefined || value === null || value === '') {
+    const token = `__MISSING_VALUE_${missingTokens.length}__`;
+    missingTokens.push({token, label});
+    return token;
+  }
+
+  return value;
+}
+
+function applyMissingPlaceholders(output) {
+  let text = output;
+
+  missingTokens.forEach(({token, label}) => {
+    text = text.split(token).join(`[missing: ${label}]`);
+  });
+
+  return text;
+}
+
+function renderTextAsHtml(text) {
+  let html = escapeHtml(text).replace(/\n/g, '\n');
+
+  missingTokens.forEach(({label}) => {
+    const placeholder = escapeHtml(`[missing: ${label}]`);
+    html = html.split(placeholder).join(`<span class="missing-value">[missing: ${escapeHtml(label)}]</span>`);
+  });
+
+  return html;
+}
+
+render();
+</script>
+</body>
+</html>
