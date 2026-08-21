@@ -2,6 +2,10 @@ FROM nginx:1.27-alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY src/jinja_config_renderer.html /usr/share/nginx/html/index.html
+COPY VERSION /usr/share/nginx/html/VERSION
+
+RUN APP_VERSION="$(tr -d '\r\n' < /usr/share/nginx/html/VERSION)" \
+  && sed -i "s|__APP_VERSION__|${APP_VERSION}|g" /usr/share/nginx/html/index.html
 
 EXPOSE 8080
 
