@@ -1,6 +1,6 @@
-# Config Generator (Jinja + Excel/CSV)
+# Config Renderer (Jinja + Excel/CSV)
 
-A web app for generating configurations (generic results) from a Jinja template and Excel/CSV data.
+A web app for rendering configurations from a Jinja template and Excel/CSV data.
 
 ## What The App Does
 
@@ -23,8 +23,8 @@ Note: the app is static (no backend), but libraries are loaded from CDN, so inte
 Pull and run the published image from GHCR:
 
 ```bash
-docker pull ghcr.io/mkyrc/config_generator:latest
-docker run --rm -p 8080:8080 --name config-generator ghcr.io/mkyrc/config_generator:latest
+docker pull ghcr.io/mkyrc/config-renderer:latest
+docker run --rm -p 8080:8080 --name config-renderer ghcr.io/mkyrc/config-renderer:latest
 ```
 
 Then open in your browser:
@@ -38,8 +38,8 @@ http://localhost:8080
 If you want to build from source instead of using GHCR:
 
 ```bash
-docker build -t config-generator:local .
-docker run --rm -p 8080:8080 --name config-generator config-generator:local
+docker build -t config-renderer:local .
+docker run --rm -p 8080:8080 --name config-renderer config-renderer:local
 ```
 
 ### Alternative: Without Docker
