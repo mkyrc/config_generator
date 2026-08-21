@@ -52,22 +52,19 @@ jobs:
           README_URL="https://github.com/${{ github.repository }}#readme"
 
           cat > release-notes.md <<EOF
-          ## Docker image
 
-          Image: \
-          \
-          \\`$IMAGE\\`
+          # Config Generator Release $TAG
+          
+          ## Docker Image
 
-          Package page: $PACKAGE_URL
+          - Tag: $TAG
+          - Image: $IMAGE
+          - Package page: $PACKAGE_URL
 
           ## Run with Docker
 
-          \
-          \
-          \\`docker pull $IMAGE\\`
-          \
-          \
-          \\`docker run --rm -p 8080:8080 --name config-generator $IMAGE\\`
+              docker pull $IMAGE
+              docker run --rm -p 8080:8080 --name config-generator $IMAGE
 
           Open in browser: http://localhost:8080
 
@@ -75,7 +72,6 @@ jobs:
 
           See README: $README_URL
 
-          Note: Docker package publication runs in CI after tag push and can take a short time to appear.
           EOF
 
       - name: Create GitHub release

@@ -1,12 +1,12 @@
 # Config Generator (Jinja + Excel/CSV)
 
-A web app for generating configurations from a Jinja template and Excel/CSV data.
+A web app for generating configurations (generic results) from a Jinja template and Excel/CSV data.
 
 ## What The App Does
 
 - Loads a template (`.j2`, `.jinja`, `.txt`)
 - Loads data (`.xlsx`, `.xls`, `.csv`)
-- Lets you choose a sheet/table and rows
+- Lets you choose a sheet/table and row
 - Generates final configuration text for selected data
 
 ## Requirements
@@ -20,17 +20,26 @@ Note: the app is static (no backend), but libraries are loaded from CDN, so inte
 
 ### Recommended: Docker
 
-Run this in the project root:
+Pull and run the published image from GHCR:
 
 ```bash
-docker build -t config-generator:local .
-docker run --rm -p 8080:8080 --name config-generator config-generator:local
+docker pull ghcr.io/mkyrc/config_generator:latest
+docker run --rm -p 8080:8080 --name config-generator ghcr.io/mkyrc/config_generator:latest
 ```
 
 Then open in your browser:
 
 ```text
 http://localhost:8080
+```
+
+### Optional: Build Locally
+
+If you want to build from source instead of using GHCR:
+
+```bash
+docker build -t config-generator:local .
+docker run --rm -p 8080:8080 --name config-generator config-generator:local
 ```
 
 ### Alternative: Without Docker
@@ -54,9 +63,8 @@ http://localhost:8080/src/jinja_config_renderer.html
 1. Upload a data file (`.xlsx`, `.xls`, or `.csv`).
 2. Upload a Jinja template (`.j2`, `.jinja`, or `.txt`).
 3. If you use Excel, select the correct sheet.
-4. Select rows you want to generate configuration for.
-5. Click generate/render.
-6. Review the output and copy it to your target system/device.
+4. Select row you want to generate configuration for.
+5. Review the output and copy it to your target system/device.
 
 Tip: the `data/` folder contains sample files (`test.csv`, `data.xlsx`, `config.j2`) so you can test the workflow quickly.
 
@@ -71,8 +79,3 @@ Tip: the `data/` folder contains sample files (`test.csv`, `data.xlsx`, `config.
 
 - Library loading fails:
    - verify internet connectivity (CDN scripts)
-
-## Current Version And Changes
-
-- Version: see `VERSION`
-- Changelog: `CHANGELOG.md`
