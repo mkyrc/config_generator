@@ -68,6 +68,11 @@ http://localhost:8080/src/jinja_config_renderer.html
 
 Tip: the `data/` folder contains sample files (`test.csv`, `data.xlsx`, `config.j2`) so you can test the workflow quickly.
 
+### Example:
+
+![alt text](doc-resources/config-generator-example.png)
+
+
 ## Common Issues
 
 - Page does not open on `localhost:8080`:
